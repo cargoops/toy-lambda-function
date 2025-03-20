@@ -1,0 +1,49 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches: [ "main" ]
+  # 필요에 따라 pull_request 등 다른 이벤트도 트리거 가능
+
+jobs:
+  deploy_lambda:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1) 체크아웃(코드 다운로드)
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      # 2) AWS 자격증명 설정
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2  # 원하는 리전
+
+      # 3) (옵션) 의존성 설치
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt --target ./package
+          # 만약 requirements.txt가 없다면 이 단계는 생략
+
+      # 4) 배포 패키지(Zip) 생성
+      - name: Create zip package
+        run: |
+          mkdir -p build
+          cp lambda_function.py build/
+          # 만약 package에 들어있는 라이브러리를 합치려면:
+          if [ -d "package" ]; then
+            cp -r package/* build/
+          fi
+          cd build
+          zip -r lambda_function.zip .
+          cd ..
+
+      # 5) Lambda 업데이트
+      - name: Deploy Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name toy-lambda-function \
+            --zip-file fileb://build/lambda_function.zip
