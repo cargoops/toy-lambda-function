@@ -57,7 +57,13 @@ jobs:
           aws lambda update-function-configuration \
             --function-name toy-lambda-function \
             --layers arn:aws:lambda:us-east-2:120569602527:layer:my-pandas-layer:${{ env.LAYER_VERSION }}
-
+      
+      # Wait
+      - name: Wait until function config is updated
+        run: |
+          aws lambda wait function-updated \
+            --function-name toy-lambda-function
+      
       # 6) 함수 코드 배포
       - name: Deploy function code
         run: |
