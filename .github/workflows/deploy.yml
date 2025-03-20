@@ -1,47 +1,65 @@
-name: Deploy Lambda
+name: Deploy Lambda with Layer
 
 on:
   push:
     branches: [ "main" ]
-  # 필요에 따라 pull_request 등 다른 이벤트도 트리거 가능
 
 jobs:
-  deploy_lambda:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    
     steps:
-      # 1) 체크아웃(코드 다운로드)
-      - name: Check out repository
+      - name: Check out
         uses: actions/checkout@v3
 
-      # 2) AWS 자격증명 설정
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2  # 원하는 리전
+          aws-region: us-east-2
 
-      # 3) (옵션) 의존성 설치
-      - name: Install dependencies
+      # 1) Layer용 디렉터리 생성 + 라이브러리 설치
+      - name: Build layer
         run: |
-          pip install -r requirements.txt --target ./package
+          mkdir -p layer/python
+          pip install pandas -t layer/python/lib/python3.9/site-packages
 
-      # 4) 배포 패키지(Zip) 생성
-      - name: Create zip package
+      # 2) Layer 압축
+      - name: Zip layer
+        run: |
+          cd layer
+          zip -r ../layer.zip .
+          cd ..
+
+      # 3) Lambda Layer 생성/업데이트 (publish-layer-version)
+      - name: Publish layer
+        run: |
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name my-pandas-layer \
+            --zip-file fileb://layer.zip \
+            --compatible-runtimes python3.9 \
+            --output text \
+            --query Version)
+          echo "LAYER_VERSION=$LAYER_VERSION" >> $GITHUB_ENV
+
+      # 4) Lambda 함수 코드만 압축 (pandas 제외)
+      - name: Create function zip
         run: |
           mkdir -p build
           cp lambda_function.py build/
-          # 만약 package에 들어있는 라이브러리를 합치려면:
-          if [ -d "package" ]; then
-            cp -r package/* build/
-          fi
           cd build
           zip -r lambda_function.zip .
           cd ..
 
-      # 5) Lambda 업데이트
-      - name: Deploy Lambda function
+      # 5) 업로드 전, Lambda 함수가 해당 Layer를 사용하도록 구성 업데이트
+      - name: Update Lambda configuration (add layer)
+        run: |
+          aws lambda update-function-configuration \
+            --function-name toy-lambda-function \
+            --layers arn:aws:lambda:us-east-2:<ACCOUNT_ID>:layer:my-pandas-layer:${{ env.LAYER_VERSION }}
+
+      # 6) 함수 코드 배포
+      - name: Deploy function code
         run: |
           aws lambda update-function-code \
             --function-name toy-lambda-function \
