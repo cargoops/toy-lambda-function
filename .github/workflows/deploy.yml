@@ -26,7 +26,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt --target ./package
-          # 만약 requirements.txt가 없다면 이 단계는 생략
 
       # 4) 배포 패키지(Zip) 생성
       - name: Create zip package
