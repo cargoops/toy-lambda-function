@@ -1,17 +1,20 @@
-import pandas as pd
+import random
 
 def lambda_handler(event, context):
-    # 예시: 간단한 DataFrame 생성 후 CSV로 변환하여 반환
-    data = {
-        'Name': ['John', 'Anna', 'Peter'],
-        'Age': [29, 23, 35]
-    }
-    df = pd.DataFrame(data)
+    # 랜덤 이름 선택
+    names = ['Mel', 'Michelle', 'Jane', 'Hyu', 'Edgar']
+    name = random.choice(names)
+
+    # prefix 추가
+    if name in ['Mel', 'Michelle', 'Jane']:
+        name = f'Beautiful {name}'
+    else:
+        name = f'Handsome {name}'
 
     # 확인용 로그
-    print(df)
+    print(name)
 
     return {
         'statusCode': 200,
-        'body': df.to_csv(index=False)
+        'body': name
     }
