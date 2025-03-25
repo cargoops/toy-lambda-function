@@ -1,24 +1,16 @@
-name: Deploy Lambda with Multiple Layers
+name: Deploy Lambda with Layer
 
 on:
   push:
-    branches: [ "main" ]  # 원하는 브랜치
+    branches: [ "main" ]
 
 jobs:
-  build_and_deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1) Git Checkout
       - name: Check out
         uses: actions/checkout@v3
 
-      # 2) Set up Python (Lambda가 Python 3.12 가정)
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-
-      # 3) Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -26,92 +18,53 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-2
 
-      #####################################################################
-      # (A) 1번 Layer: Pandas 전용
-      #####################################################################
-      - name: Build pandas layer
+      # 1) Layer용 디렉터리 생성 + 라이브러리 설치
+      - name: Build layer
         run: |
-          rm -rf layer_pandas
-          mkdir -p layer_pandas/python/lib/python3.12/site-packages
-          pip install --no-cache-dir pandas==1.5.3 \
-              -t layer_pandas/python/lib/python3.12/site-packages
+          mkdir -p layer/python
+          pip install -r requirements.txt -t layer/python/lib/python3.12/site-packages
 
-      - name: Zip pandas layer
+      # 2) Layer 압축
+      - name: Zip layer
         run: |
-          cd layer_pandas
-          zip -r ../pandas_layer.zip .
+          cd layer
+          zip -r ../layer.zip .
           cd ..
 
-      - name: Publish pandas layer
+      # 3) Lambda Layer 생성/업데이트 (publish-layer-version)
+      - name: Publish layer
         run: |
-          PANDAS_LAYER_VERSION=$(aws lambda publish-layer-version \
+          LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name my-pandas-layer \
-            --zip-file fileb://pandas_layer.zip \
+            --zip-file fileb://layer.zip \
             --compatible-runtimes python3.12 \
-            --query Version --output text)
-          echo "PANDAS_LAYER_VERSION=$PANDAS_LAYER_VERSION" >> $GITHUB_ENV
+            --output text \
+            --query Version)
+          echo "LAYER_VERSION=$LAYER_VERSION" >> $GITHUB_ENV
 
-      #####################################################################
-      # (B) 2번 Layer: 기타 라이브러리
-      #    (예: requests, beautifulsoup4 등)
-      #####################################################################
-      - name: Build other layer
+      # 4) Lambda 함수 코드만 압축 (pandas 제외)
+      - name: Create function zip
         run: |
-          rm -rf layer_others
-          mkdir -p layer_others/python/lib/python3.12/site-packages
-          # 예시: requests, beautifulsoup4, PyYAML 등
-          pip install --no-cache-dir requests==2.31.0 beautifulsoup4==4.12.2 \
-              -t layer_others/python/lib/python3.12/site-packages
-
-      - name: Zip other layer
-        run: |
-          cd layer_others
-          zip -r ../other_layer.zip .
-          cd ..
-
-      - name: Publish other layer
-        run: |
-          OTHER_LAYER_VERSION=$(aws lambda publish-layer-version \
-            --layer-name my-other-layer \
-            --zip-file fileb://other_layer.zip \
-            --compatible-runtimes python3.12 \
-            --query Version --output text)
-          echo "OTHER_LAYER_VERSION=$OTHER_LAYER_VERSION" >> $GITHUB_ENV
-
-      #####################################################################
-      # (C) Lambda 함수 코드만 ZIP
-      #####################################################################
-      - name: Build function code
-        run: |
-          rm -rf build
           mkdir -p build
           cp lambda_function.py build/
-          # 만약 이곳에 소규모 requirements.txt를 따로 설치할 수도 있음
           cd build
           zip -r lambda_function.zip .
           cd ..
 
-      #####################################################################
-      # (D) Lambda 함수에 Layer 연결 (Pandas + Other)
-      #####################################################################
-      - name: Update function configuration
+      # 5) 업로드 전, Lambda 함수가 해당 Layer를 사용하도록 구성 업데이트
+      - name: Update Lambda configuration (add layer)
         run: |
-          # 기존 Layers가 있다면 덮어쓸 수 있음. 주의하세요.
-          # 여러 Layer를 동시에 연결
           aws lambda update-function-configuration \
             --function-name toy-lambda-function \
-            --layers \
-              arn:aws:lambda:us-east-2:<ACCOUNT_ID>:layer:my-pandas-layer:${{ env.PANDAS_LAYER_VERSION }} \
-              arn:aws:lambda:us-east-2:<ACCOUNT_ID>:layer:my-other-layer:${{ env.OTHER_LAYER_VERSION }}
-
-      - name: Wait for config update
+            --layers arn:aws:lambda:us-east-2:120569602527:layer:my-pandas-layer:${{ env.LAYER_VERSION }}
+      
+      # Wait
+      - name: Wait until function config is updated
         run: |
           aws lambda wait function-updated \
             --function-name toy-lambda-function
-
-      #####################################################################
-      # (E) Lambda 함수 코드 배포
-      #####################################################################
+      
+      # 6) 함수 코드 배포
       - name: Deploy function code
         run: |
           aws lambda update-function-code \
