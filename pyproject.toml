@@ -9,5 +9,5 @@ ensure_newline_before_comments = true
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py312']
 include = '\.pyi?$' 
