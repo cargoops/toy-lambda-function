@@ -56,9 +56,11 @@ jobs:
       # 5) 업로드 전, Lambda 함수가 해당 Layer를 사용하도록 구성 업데이트
       - name: Update Lambda configuration (add layer)
         run: |
+          # --function-name toy-lambda-function  # 기존 함수 (주석)
           aws lambda update-function-configuration \
-            --function-name toy-lambda-function \
+            --function-name inventory-manager-lambda \
             --layers arn:aws:lambda:us-east-2:120569602527:layer:my-pandas-layer:${{ env.LAYER_VERSION }}
+
       
       # Wait
       - name: Wait until function config is updated
@@ -69,6 +71,8 @@ jobs:
       # 6) 함수 코드 배포
       - name: Deploy function code
         run: |
+          # --function-name toy-lambda-function  # 기존 함수 (주석)
           aws lambda update-function-code \
-            --function-name toy-lambda-function \
+            --function-name inventory-manager-lambda \
             --zip-file fileb://build/lambda_function.zip
+
