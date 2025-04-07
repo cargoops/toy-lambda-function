@@ -48,7 +48,7 @@ jobs:
       - name: Create function zip
         run: |
           mkdir -p build
-          cp lambda_function.py build/
+          cp lambda-inventory-manager/inventory_manager.py build/lambda_function.py
           cd build
           zip -r lambda_function.zip .
           cd ..
