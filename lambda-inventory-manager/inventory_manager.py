@@ -5,6 +5,14 @@ from boto3.dynamodb.conditions import Key, Attr
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('inventory')  # 실제 테이블 이름으로 변경 필요
 
+def lambda_handler(event, context):
+    # CRUD 로직 작성
+    return {
+        'statusCode': 200,
+        'body': 'Inventory handled!'
+    }
+
+
 def create_item(item_id, name, quantity):
     """새 항목을 추가합니다."""
     response = table.put_item(
