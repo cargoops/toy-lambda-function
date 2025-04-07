@@ -24,7 +24,7 @@ jobs:
       - name: Build layer
         run: |
           mkdir -p layer/python
-          pip install --no-cache-dir -r requirements.txt -t layer/python/lib/python3.12/site-packages
+          pip install --no-cache-dir -r requirements.txt -t layer/python/lib/python3.13/site-packages
 
       # 2) Layer 압축
       - name: Zip layer
@@ -39,7 +39,7 @@ jobs:
           LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name my-pandas-layer \
             --zip-file fileb://layer.zip \
-            --compatible-runtimes python3.12 \
+            --compatible-runtimes python3.13 \
             --output text \
             --query Version)
           echo "LAYER_VERSION=$LAYER_VERSION" >> $GITHUB_ENV
